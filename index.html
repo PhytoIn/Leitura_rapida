@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Jogo de Leitura Rápida</title>
+  <style>
+    :root {
+      --primary: #7F56D9;
+      --primary-hover: #6941C6;
+      --background: linear-gradient(135deg, #F9FAFB 0%, #F4EBFF 100%);
+      --text: #344054;
+      --card-bg: rgba(255, 255, 255, 0.95);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      background: var(--background);
+      color: var(--text);
+    }
+
+    h1 {
+      color: var(--primary);
+      font-weight: 800;
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .phase-buttons {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .phase-buttons button,
+    #startBtn,
+    #restartBtn {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #startBtn:hover,
+    #restartBtn:hover,
+    .phase-buttons button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    #game {
+      text-align: center;
+      background: var(--card-bg);
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      max-width: 600px;
+      width: 100%;
+      display: none;
+    }
+
+    #phaseDisplay {
+      font-size: 1.4rem;
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+
+    #scoreDisplay,
+    #timerDisplay {
+      margin: 16px 0;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--primary);
+    }
+
+    #wordDisplay {
+      font-size: 2.5rem;
+      margin: 32px 0;
+      font-weight: 700;
+      color: var(--text);
+      min-height: 60px;
+    }
+
+    #options {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 32px 0;
+    }
+
+    #options button {
+      font-size: 1.5rem;
+      padding: 16px 24px;
+      cursor: pointer;
+      border: none;
+      border-radius: 12px;
+      background: white;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      min-width: 80px;
+    }
+
+    #options button:hover {
+      background: #F9F5FF;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    #feedback {
+      margin: 24px 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+      min-height: 24px;
+    }
+
+    #feedback.correct {
+      color: #12B76A;
+    }
+
+    #feedback.wrong {
+      color: #F04438;
+    }
+
+    #timerDisplay {
+      color: #667085;
+      font-weight: 400;
+    }
+
+    #restartBtn {
+      margin-top: 24px;
+      background: #F4EBFF;
+      color: var(--primary);
+    }
+
+    #initialMenu {
+      text-align: center;
+      background: var(--card-bg);
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      max-width: 600px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Tela inicial -->
+  <div id="initialMenu">
+    <h1>Jogo de Leitura Rápida</h1>
+    <div class="phase-buttons">
+      <button id="phase1Btn">Fase 1</button>
+      <button id="phase2Btn">Fase 2</button>
+      <button id="phase3Btn">Fase 3</button>
+    </div>
+    <button id="startBtn">Começar Jogo</button>
+  </div>
+
+
+  <!-- Área do jogo -->
+  <div id="game">
+    <div id="scoreDisplay">Pontos: 0</div>
+    <div id="wordDisplay"></div>
+    <div id="options"></div>
+    <div id="totalScore" style="font-size: 1rem; color: #667085;"></div>
+    <div id="timerDisplay"></div>
+    <div id="feedback"></div>
+    <button id="restartBtn">Voltar ao Menu</button>
+  </div>
+
+  <script>
+
+    // Estados do jogo
+    let consecutiveTimeouts = 0;
+
+    // Configurações das metas
+    const FASE_META = {
+      1: 15,
+      2: 25,
+      3: 50
+    };
+
+    // Configurações de tempo (ms)
+    const tempoVisibilidade = 2000;
+    const tempoResposta = 5000;
+
+    // Estados do jogo
+    let currentPhase = 1;
+    let phaseScore = 0;
+    let totalScore = 0;
+    let tempoRestante, timerInterval, mostrarPalavraTimeout;
+
+    // Palavras e símbolos por fase
+    const fase1Words = [
+      { palavra: 'uva', simbolo: '🍇' },
+      { palavra: 'ovo', simbolo: '🥚' },
+      { palavra: 'imã', simbolo: '🧲' },
+      { palavra: 'sol', simbolo: '☀️' },
+      { palavra: 'lua', simbolo: '🌙' },
+      { palavra: 'pão', simbolo: '🍞' },
+      { palavra: 'fio', simbolo: '🧵' },
+      { palavra: 'pato', simbolo: '🦆' },
+      { palavra: 'sapo', simbolo: '🐸' },
+      { palavra: 'leão', simbolo: '🦁' },
+      { palavra: 'vaca', simbolo: '🐄' },
+      { palavra: 'foca', simbolo: '🦭' },
+      { palavra: 'cama', simbolo: '🛏️' },
+      { palavra: 'vela', simbolo: '🕯️' },
+      { palavra: 'gato', simbolo: '🐱' },
+      { palavra: 'casa', simbolo: '🏠' },
+      { palavra: 'bola', simbolo: '⚽' },
+      { palavra: 'frio', simbolo: '❄️' },
+      { palavra: 'pilha', simbolo: '🔋' },
+      { palavra: 'milho', simbolo: '🌽' },
+      { palavra: 'cacto', simbolo: '🌵' },
+      { palavra: 'nuvem', simbolo: '☁️' },
+      { palavra: 'régua', simbolo: '📏' },
+      { palavra: 'chave', simbolo: '🔑' },
+      { palavra: 'coelho', simbolo: '🐰' },
+      { palavra: 'caneta', simbolo: '🖊️' },
+      { palavra: 'coruja', simbolo: '🦉' },
+      { palavra: 'trovão', simbolo: '🌩️' },
+      { palavra: 'quente', simbolo: '🔥' },
+      { palavra: 'baleia', simbolo: '🐋' },
+      { palavra: 'colher', simbolo: '🥄' },
+      { palavra: 'trevo', simbolo: '🍀' },
+      { palavra: 'carro', simbolo: '🚗' },
+      { palavra: 'rádio', simbolo: '📻' },
+      { palavra: 'pizza', simbolo: '🍕' },
+      { palavra: 'trator', simbolo: '🚜' }
+    ];
+
+    const fase2Words = [
+      { palavra: 'ônibus', simbolo: '🚌' },
+      { palavra: 'xícara', simbolo: '☕' },
+      { palavra: 'câmera', simbolo: '📷' },
+      { palavra: 'planeta', simbolo: '🌎' },
+      { palavra: 'janela', simbolo: '🪟' },
+      { palavra: 'árvore', simbolo: '🌳' },
+      { palavra: 'macaco', simbolo: '🐵' },
+      { palavra: 'dinheiro', simbolo: '💰' },
+      { palavra: 'sorvete', simbolo: '🍦' },
+      { palavra: 'lâmpada', simbolo: '💡' },
+      { palavra: 'pimenta', simbolo: '🌶️' },
+      { palavra: 'tubarão', simbolo: '🦈' },
+      { palavra: 'correio', simbolo: '📬' },
+      { palavra: 'abacaxi', simbolo: '🍍' },
+      { palavra: 'escada', simbolo: '🪜' },
+      { palavra: 'serrote', simbolo: '🪚' },
+      { palavra: 'vassoura', simbolo: '🧹' },
+      { palavra: 'pinguim', simbolo: '🐧' },
+      { palavra: 'cenoura', simbolo: '🥕' },
+      { palavra: 'morango', simbolo: '🍓' },
+      { palavra: 'carretel', simbolo: '🧵' },
+      { palavra: 'cadeado', simbolo: '🔒' },
+      { palavra: 'pirulito', simbolo: '🍭' },
+      { palavra: 'palmeira', simbolo: '🌴' },
+      { palavra: 'envelope', simbolo: '✉️' },
+      { palavra: 'pinheiro', simbolo: '🌲' },
+      { palavra: 'furacão', simbolo: '🌪️' },
+      { palavra: 'banheira', simbolo: '🛁' },
+      { palavra: 'chuveiro', simbolo: '🚿' },
+      { palavra: 'joaninha', simbolo: '🐞' },
+      { palavra: 'caramujo', simbolo: '🐌' },
+      { palavra: 'formiga', simbolo: '🐜' },
+      { palavra: 'foguete', simbolo: '🚀' },
+      { palavra: 'batata', simbolo: '🥔' },
+      { palavra: 'galinha', simbolo: '🐔' },
+      { palavra: 'brócolis', simbolo: '🥦' },
+      { palavra: 'caminhão', simbolo: '🚚' },
+      { palavra: 'patinete', simbolo: '🛴' },
+      { palavra: 'margarida', simbolo: '🌼' },
+      { palavra: 'golfinho', simbolo: '🐬' },
+      { palavra: 'pintinho', simbolo: '🐤' },
+      { palavra: 'lanterna', simbolo: '🔦' },
+      { palavra: 'unicórnio', simbolo: '🦄' },
+      { palavra: 'bicicleta', simbolo: '🚲' },
+      { palavra: 'melancia', simbolo: '🍉' },
+      { palavra: 'televisão', simbolo: '📺' },
+      { palavra: 'impressora', simbolo: '🖨️' },
+      { palavra: 'ambulância', simbolo: '🚑' },
+      { palavra: 'bumerangue', simbolo: '🪃' },
+      { palavra: 'batata frita', simbolo: '🍟' },
+      { palavra: 'sanduíche', simbolo: '🥪' },
+      { palavra: 'paraquedas', simbolo: '🪂' },
+      { palavra: 'dinossauro', simbolo: '🦕' },
+      { palavra: 'helicóptero', simbolo: '🚁' },
+      { palavra: 'motocicleta', simbolo: '🏍️' },
+      { palavra: 'disco voador', simbolo: '🛸' },
+      { palavra: 'garfo e faca', simbolo: '🍴' },
+      { palavra: 'dez', simbolo: '10' },
+      { palavra: 'um', simbolo: '1' },
+      { palavra: 'dois', simbolo: '2' },
+      { palavra: 'três', simbolo: '3' },
+      { palavra: 'seis', simbolo: '6' },
+      { palavra: 'sete', simbolo: '7' },
+      { palavra: 'oito', simbolo: '8' },
+      { palavra: 'nove', simbolo: '9' },
+      { palavra: 'onze', simbolo: '11' },
+      { palavra: 'doze', simbolo: '12' },
+      { palavra: 'treze', simbolo: '13' },
+      { palavra: 'vinte', simbolo: '20' },
+      { palavra: 'trinta', simbolo: '30' },
+      { palavra: 'quinze', simbolo: '15' },
+      { palavra: 'dezoito', simbolo: '18' },
+      { palavra: 'dezessete', simbolo: '17' },
+      { palavra: 'dezenove', simbolo: '19' },
+      { palavra: 'quarenta', simbolo: '40' },
+      { palavra: 'cinquenta', simbolo: '50' },
+      { palavra: 'sessenta', simbolo: '60' },
+      { palavra: 'setenta', simbolo: '70' },
+      { palavra: 'oitenta', simbolo: '80' },
+      { palavra: 'noventa', simbolo: '90' },
+      { palavra: 'dezesseis', simbolo: '16' },
+      { palavra: 'quatorze', simbolo: '14' },
+      { palavra: 'cem', simbolo: '100' },
+      { palavra: 'duzentos', simbolo: '200' },
+      { palavra: 'trezentos', simbolo: '300' },
+      { palavra: 'quatrocentos', simbolo: '400' },
+      { palavra: 'quinhentos', simbolo: '500' },
+      { palavra: 'seiscentos', simbolo: '600' },
+      { palavra: 'setecentos', simbolo: '700' },
+      { palavra: 'oitocentos', simbolo: '800' },
+      { palavra: 'novecentos', simbolo: '900' }
+    ];
+
+    const fase3Words = [
+      { palavra: 'cento e cinquenta', simbolo: '150' },
+      { palavra: 'cento e dez', simbolo: '110' },
+      { palavra: 'cento e noventa', simbolo: '190' },
+      { palavra: 'cento e onze', simbolo: '111' },
+      { palavra: 'cento e setenta', simbolo: '170' },
+      { palavra: 'cento e trinta', simbolo: '130' },
+      { palavra: 'cento e um', simbolo: '101' },
+      { palavra: 'cento e vinte', simbolo: '120' },
+      { palavra: 'cinquenta e cinco', simbolo: '55' },
+      { palavra: 'cinquenta e dois', simbolo: '52' },
+      { palavra: 'cinquenta e nove', simbolo: '59' },
+      { palavra: 'cinquenta e quatro', simbolo: '54' },
+      { palavra: 'cinquenta e seis', simbolo: '56' },
+      { palavra: 'cinquenta e um', simbolo: '51' },
+      { palavra: 'duzentos e dois', simbolo: '202' },
+      { palavra: 'duzentos e oitenta', simbolo: '280' },
+      { palavra: 'duzentos e quarenta', simbolo: '240' },
+      { palavra: 'duzentos e quinze', simbolo: '215' },
+      { palavra: 'duzentos e sessenta', simbolo: '260' },
+      { palavra: 'duzentos e treze', simbolo: '213' },
+      { palavra: 'duzentos e trinta', simbolo: '230' },
+      { palavra: 'novecentos e dez', simbolo: '910' },
+      { palavra: 'novecentos e dezenove', simbolo: '919' },
+      { palavra: 'novecentos e nove', simbolo: '909' },
+      { palavra: 'novecentos e oitenta', simbolo: '980' },
+      { palavra: 'novecentos e quarenta', simbolo: '940' },
+      { palavra: 'novecentos e sessenta', simbolo: '960' },
+      { palavra: 'noventa e nove', simbolo: '99' },
+      { palavra: 'noventa e seis', simbolo: '96' },
+      { palavra: 'noventa e três', simbolo: '93' },
+      { palavra: 'oitenta e oito', simbolo: '88' },
+      { palavra: 'oitenta e um', simbolo: '81' },
+      { palavra: 'oitocentos e cinquenta', simbolo: '850' },
+      { palavra: 'oitocentos e dezesseis', simbolo: '816' },
+      { palavra: 'oitocentos e oito', simbolo: '808' },
+      { palavra: 'oitocentos e setenta', simbolo: '870' },
+      { palavra: 'oitocentos e trinta', simbolo: '830' },
+      { palavra: 'oitocentos e vinte', simbolo: '820' },
+      { palavra: 'quarenta e cinco', simbolo: '45' },
+      { palavra: 'quarenta e dois', simbolo: '42' },
+      { palavra: 'quarenta e nove', simbolo: '49' },
+      { palavra: 'quarenta e oito', simbolo: '48' },
+      { palavra: 'quarenta e sete', simbolo: '47' },
+      { palavra: 'quarenta e três', simbolo: '43' },
+      { palavra: 'quarenta e um', simbolo: '41' },
+      { palavra: 'quatrocentos e dezessete', simbolo: '417' },
+      { palavra: 'quatrocentos e dezoito', simbolo: '418' },
+      { palavra: 'quatrocentos e oitenta', simbolo: '480' },
+      { palavra: 'quatrocentos e quatro', simbolo: '404' },
+      { palavra: 'quatrocentos e sessenta', simbolo: '460' },
+      { palavra: 'quatrocentos e trinta', simbolo: '430' },
+      { palavra: 'quinhentos e cinco', simbolo: '505' },
+      { palavra: 'quinhentos e doze', simbolo: '512' },
+      { palavra: 'quinhentos e noventa', simbolo: '590' },
+      { palavra: 'quinhentos e quarenta', simbolo: '540' },
+      { palavra: 'quinhentos e sessenta', simbolo: '560' },
+      { palavra: 'seiscentos e cinquenta', simbolo: '650' },
+      { palavra: 'seiscentos e noventa', simbolo: '690' },
+      { palavra: 'seiscentos e seis', simbolo: '606' },
+      { palavra: 'seiscentos e setenta', simbolo: '670' },
+      { palavra: 'seiscentos e treze', simbolo: '613' },
+      { palavra: 'seiscentos e trinta', simbolo: '630' },
+      { palavra: 'sessenta e sete', simbolo: '67' },
+      { palavra: 'sessenta e três', simbolo: '63' },
+      { palavra: 'setecentos e dezenove', simbolo: '719' },
+      { palavra: 'setecentos e oitenta', simbolo: '780' },
+      { palavra: 'setecentos e quarenta', simbolo: '740' },
+      { palavra: 'setecentos e quinze', simbolo: '715' },
+      { palavra: 'setecentos e sessenta', simbolo: '760' },
+      { palavra: 'setecentos e sete', simbolo: '707' },
+      { palavra: 'setenta e dois', simbolo: '72' },
+      { palavra: 'setenta e nove', simbolo: '79' },
+      { palavra: 'setenta e quatro', simbolo: '74' },
+      { palavra: 'trezentos e cinquenta', simbolo: '350' },
+      { palavra: 'trezentos e doze', simbolo: '312' },
+      { palavra: 'trezentos e noventa', simbolo: '390' },
+      { palavra: 'trezentos e quatorze', simbolo: '314' },
+      { palavra: 'trezentos e setenta', simbolo: '370' },
+      { palavra: 'trezentos e três', simbolo: '303' },
+      { palavra: 'trezentos e vinte', simbolo: '320' },
+      { palavra: 'trinta e dois', simbolo: '32' },
+      { palavra: 'trinta e oito', simbolo: '38' },
+      { palavra: 'trinta e quatro', simbolo: '34' },
+      { palavra: 'trinta e seis', simbolo: '36' },
+      { palavra: 'trinta e sete', simbolo: '37' },
+      { palavra: 'trinta e um', simbolo: '31' },
+      { palavra: 'vinte e cinco', simbolo: '25' },
+      { palavra: 'vinte e dois', simbolo: '22' },
+      { palavra: 'vinte e nove', simbolo: '29' },
+      { palavra: 'vinte e seis', simbolo: '26' },
+      { palavra: 'vinte e sete', simbolo: '27' },
+      { palavra: 'vinte e três', simbolo: '23' },
+      { palavra: 'vinte e um', simbolo: '21' }
+    ];
+
+    // Função para embaralhar arrays
+    function shuffle(array) {
+      const a = array.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+// Configuração única dos eventos
+    document.addEventListener('DOMContentLoaded', () => {
+      // Configuração dos botões de fase para iniciar diretamente
+      document.getElementById('phase1Btn').onclick = () => startGame(1);
+      document.getElementById('phase2Btn').onclick = () => startGame(2);
+      document.getElementById('phase3Btn').onclick = () => startGame(3);
+      
+      // Botão "Começar Jogo" inicia na última fase selecionada
+      let lastSelectedPhase = 1;
+      document.getElementById('phase1Btn').addEventListener('click', () => lastSelectedPhase = 1);
+      document.getElementById('phase2Btn').addEventListener('click', () => lastSelectedPhase = 2);
+      document.getElementById('phase3Btn').addEventListener('click', () => lastSelectedPhase = 3);
+      document.getElementById('startBtn').onclick = () => startGame(lastSelectedPhase);
+      
+      document.getElementById('restartBtn').onclick = () => {
+        clearInterval(timerInterval);
+        clearTimeout(mostrarPalavraTimeout);
+        document.getElementById('initialMenu').style.display = 'block';
+        document.getElementById('game').style.display = 'none';
+      };
+    });
+
+    // Nova função para iniciar o jogo
+    function startGame(phase) {
+      currentPhase = phase;
+      phaseScore = 0;
+      consecutiveTimeouts = 0; // Resetar ao iniciar novo jogo
+      document.getElementById('initialMenu').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+      updateScore();
+      nextRound();
+    }
+
+    // Atualiza placar na tela
+    function updateScore() {
+      document.getElementById('scoreDisplay').textContent = `Fase ${currentPhase} | Pontos: ${phaseScore}`;
+      document.getElementById('totalScore').textContent = `Pontuação Total: ${totalScore}`;
+    }
+
+    // Define fase atual a partir do placar
+    function checkPhaseProgress() {
+      if(phaseScore >= FASE_META[currentPhase]) {
+        if(currentPhase === 3) {
+          alert('🎉 Parabéns! Você zerou o jogo!');
+          document.getElementById('restartBtn').click();
+          return;
+        }
+        
+        totalScore += phaseScore;
+        currentPhase++;
+        phaseScore = 0;
+        alert(`✅ Fase concluída! Indo para Fase ${currentPhase}`);
+      }
+    }
+
+    // Inicia uma rodada
+    function nextRound() {
+      clearTimeout(mostrarPalavraTimeout);
+      clearInterval(timerInterval);
+      document.getElementById('feedback').textContent = '';
+      updateScore();
+
+      const pool = currentPhase === 1 // Alterado para usar currentPhase
+        ? fase1Words
+        : currentPhase === 2
+          ? fase2Words
+          : fase3Words;
+
+      // escolher palavra
+      const choice = pool[Math.floor(Math.random() * pool.length)];
+      const correctSymbol = choice.simbolo;
+      document.getElementById('wordDisplay').textContent = choice.palavra;
+
+      // esconder opções enquanto palavra aparece
+      document.getElementById('options').innerHTML = '';
+      document.getElementById('timerDisplay').textContent = '';
+      document.getElementById('wordDisplay').style.visibility = 'visible';
+
+      // após tempoVisibilidade, mostrar opções
+      mostrarPalavraTimeout = setTimeout(() => {
+        document.getElementById('wordDisplay').style.visibility = 'hidden';
+
+        // criar opções (1 correta + 3 erradas)
+        const wrongs = shuffle(pool.filter(w => w.simbolo !== correctSymbol))
+          .slice(0, 3)
+          .map(w => w.simbolo);
+        const opts = shuffle([correctSymbol, ...wrongs]);
+        const optsContainer = document.getElementById('options');
+        opts.forEach(sym => {
+          const btn = document.createElement('button');
+          btn.textContent = sym;
+          btn.onclick = () => chooseOption(sym, correctSymbol);
+          optsContainer.appendChild(btn);
+        });
+
+        // iniciar timer de resposta
+        tempoRestante = tempoResposta / 1000;
+        document.getElementById('timerDisplay').textContent = `Tempo: ${tempoRestante}s`;
+        timerInterval = setInterval(() => {
+          tempoRestante--;
+          document.getElementById('timerDisplay').textContent = `Tempo: ${tempoRestante}s`;
+          if (tempoRestante <= 0) {
+            clearInterval(timerInterval);
+            handleTimeout(correctSymbol);
+          }
+        }, 1000);
+
+      }, tempoVisibilidade);
+    }
+
+    // Quando usuário escolhe uma opção
+    function chooseOption(selected, correct) {
+      clearTimeout(mostrarPalavraTimeout);
+      clearInterval(timerInterval);
+      const fb = document.getElementById('feedback');
+      
+      // Resetar contador de timeouts consecutivos
+      consecutiveTimeouts = 0;
+      
+      if (selected === correct) {
+        phaseScore++;
+        totalScore++;
+        fb.textContent = 'Correto!';
+        fb.className = 'correct';
+        checkPhaseProgress();
+      } else {
+        fb.textContent = `Errado! Era "${correct}"`;
+        fb.className = 'wrong';
+      }
+      
+      updateScore();
+      setTimeout(nextRound, 1500);
+    }
+
+
+    // Quando o tempo esgota
+    function handleTimeout(correct) {
+      const fb = document.getElementById('feedback');
+      fb.textContent = `Tempo esgotado! Era "${correct}"`;
+      fb.className = 'wrong';
+      
+      consecutiveTimeouts++;
+      
+      if(consecutiveTimeouts >= 5) {
+        alert('⏰ Hmm, parece que você parou de jogar... Voltando ao menu principal');
+        document.getElementById('restartBtn').click();
+        consecutiveTimeouts = 0;
+        return;
+      }
+      
+      setTimeout(nextRound, 1500);
+    }
+
+  </script>
+</body>
+</html>
